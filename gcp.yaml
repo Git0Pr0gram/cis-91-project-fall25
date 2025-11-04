@@ -1,0 +1,10 @@
+plugin: gcp_compute
+projects:
+  - nice-storm-470200-a3
+auth_kind: machineaccount
+keyed_groups:
+  - prefix: gcp
+    key: labels
+  - prefix: tags
+    key: tags
+    
