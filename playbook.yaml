@@ -1,9 +1,40 @@
-# Playbook is: A list plays
-
 - hosts: all
-  name: Install Apache and PHP
+  name: Install Apache, PHP, and MariaDB
   become: yes
   tasks:
+    - name: Find attached Google disks
+      ansible.builtin.shell: "ls -1 /dev/disk/by-id/ | grep google- | grep -v google-persistent-disk"
+      register: disk_list
+      changed_when: false
+
+    - name: Fail if no extra disk found
+      ansible.builtin.fail:
+        msg: "No extra Google disk found!"
+      when: disk_list.stdout_lines | length == 0
+
+    - name: Set disk device fact
+      ansible.builtin.set_fact:
+        disk_device: "/dev/disk/by-id/{{ disk_list.stdout_lines[0] }}"
+
+    - name: Format the persistent disk
+      community.general.filesystem:
+        fstype: ext4
+        dev: "{{ disk_device }}"
+        force: no
+
+    - name: Create mysql mount point
+      ansible.builtin.file:
+        path: /var/lib/mysql
+        state: directory
+        mode: '0755'
+
+    - name: Mount the persistent disk
+      ansible.posix.mount:
+        path: /var/lib/mysql
+        src: "{{ disk_device }}"
+        fstype: ext4
+        state: mounted
+
     - name: Install packages 
       ansible.builtin.apt:
         update_cache: yes
@@ -14,6 +45,12 @@
           - mediawiki
           - mariadb-server
           - python3-pymysql
+
+    - name: Ensure MariaDB is running
+      ansible.builtin.service:
+        name: mariadb
+        state: started
+        enabled: true
 
     - name: Grant all privileges to mediawiki user
       community.mysql.mysql_query:
